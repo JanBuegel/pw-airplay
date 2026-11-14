@@ -1167,6 +1167,22 @@ diff --git a/src/player.c b/src/player.c
 index f9ce616..7a4c91f 100644
 --- a/src/player.c
 +++ b/src/player.c
+@@ -1430,6 +1430,15 @@
+       return COMMAND_END;
+     }
+ 
++  // Discovery backends share device IDs. A stale RAOP removal must not
++  // remove the AirPlay 2 device that superseded it (or vice versa).
++  if (device->type != remove->type)
++    {
++      outputs_device_free(remove);
++      *retval = 0;
++      return COMMAND_END;
++    }
++
+   // v{4,6}_port non-zero indicates the address family stopped advertising
+   if (remove->v4_port && device->v4_address)
+     {
 @@ -2024,6 +2024,8 @@ playback_start_bh(void *arg, int *retval)
  {
    int ret;
@@ -1176,3 +1192,20 @@ index f9ce616..7a4c91f 100644
    ret = pb_timer_start();
    if (ret < 0)
      goto error;
+
+diff --git a/src/mdns_avahi.c b/src/mdns_avahi.c
+--- a/src/mdns_avahi.c
++++ b/src/mdns_avahi.c
+@@ -806,6 +806,12 @@
+       else
+ 	DPRINTF(E_LOG, L_MDNS, "Avahi Resolver empty callback\n");
+ 
++      // A resolver timeout is not a service withdrawal. Keep any resolved
++      // device until the service browser reports REMOVE; the resolver stays
++      // alive below so it can report fresh records when they arrive.
++      if (event == AVAHI_RESOLVER_FAILURE && avahi_client_errno(mdns_client) == AVAHI_ERR_TIMEOUT)
++        return;
++
+       family = avahi_proto_to_af(proto);
+       if (family != AF_UNSPEC)
+ 	mb->cb(name, type, domain, NULL, family, NULL, -1, NULL);
